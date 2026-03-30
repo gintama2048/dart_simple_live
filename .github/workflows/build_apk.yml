@@ -1,7 +1,7 @@
 name: Build Mobile APK
 
 on:
-  workflow_dispatch: # 开启手动运行按钮
+  workflow_dispatch: 
 
 jobs:
   build:
@@ -21,21 +21,27 @@ jobs:
           channel: 'stable'
           cache: true
 
+      # 关键修复步骤：注入缺失的本地配置
+      - name: Fix missing properties
+        working-directory: ./simple_live_app/android
+        run: |
+          echo "VERSION_NAME=1.0.0" > local.properties
+          echo "VERSION_CODE=1" >> local.properties
+          echo "flutter.sdk=$FLUTTER_ROOT" >> local.properties
+
       - name: Install dependencies
-        # 关键修复：指定在手机端文件夹下运行
         working-directory: ./simple_live_app
         run: |
           flutter clean
           flutter pub get
 
       - name: Build APK
-        # 关键修复：指定在手机端文件夹下运行
         working-directory: ./simple_live_app
+        # 使用 --split-per-abi 可以生成更小的安装包，如果不想要也可以去掉
         run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: simple-live-app-apk
-          # 对应的文件路径也要加上前缀
           path: simple_live_app/build/app/outputs/flutter-apk/app-release.apk
