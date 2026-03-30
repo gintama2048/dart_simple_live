@@ -1,4 +1,4 @@
-name: Build Mobile APK
+name: Build Mobile APK (Debug Version)
 
 on:
   workflow_dispatch: 
@@ -21,40 +21,27 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 核心修复：多重注入配置信息
-      - name: Fix missing properties
+      # 注入基础配置，确保 Gradle 不会因为找不到文件而崩溃
+      - name: Prepare Properties
         run: |
-          # 进入安卓目录
-          cd simple_live_app/android
-          
-          # 1. 注入 local.properties (Flutter 必需)
+          # 在根目录和安卓目录都创建配置文件，防止脚本找不到
           echo "flutter.sdk=$FLUTTER_ROOT" > local.properties
           echo "flutter.versionCode=1" >> local.properties
           echo "flutter.versionName=1.0.0" >> local.properties
-          
-          # 2. 注入 gradle.properties (针对 Kotlin DSL 报错修复)
-          # 我们把可能的变量名全部填上，防止脚本找不到
-          echo "VERSION_NAME=1.0.0" >> gradle.properties
-          echo "VERSION_CODE=1" >> gradle.properties
-          echo "versionName=1.0.0" >> gradle.properties
-          echo "versionCode=1" >> gradle.properties
+          cp local.properties simple_live_app/android/local.properties
 
       - name: Install dependencies
         working-directory: ./simple_live_app
-        run: |
-          flutter pub get
+        run: flutter pub get
 
-      - name: Build APK
+      - name: Build Debug APK
         working-directory: ./simple_live_app
-        # 如果 release 持续失败，可以尝试改为 flutter build apk --debug 先跑通流程
-        run: flutter build apk --release --no-tree-shake-icons
-        env:
-          # 3. 注入环境变量 (有些脚本会从环境读取)
-          VERSION_NAME: "1.0.0"
-          VERSION_CODE: "1"
+        # 关键修改：改用 debug 编译，跳过 release 的签名检查
+        run: flutter build apk --debug --no-tree-shake-icons
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: simple-live-app-apk
-          path: simple_live_app/build/app/outputs/flutter-apk/app-release.apk
+          name: simple-live-debug-apk
+          # 注意：Debug 模式生成的路径是 app-debug.apk
+          path: simple_live_app/build/app/outputs/flutter-apk/app-debug.apk
