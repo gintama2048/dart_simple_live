@@ -1,41 +1,40 @@
 name: Build APK
 
 on:
-  workflow_dispatch: # 允许手动触发打包
+  workflow_dispatch: 
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1. 检出代码 (升级到 v4)
       - uses: actions/checkout@v4
 
-      # 2. 设置 Java 环境 (升级到 v4)
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # 3. 设置 Flutter 环境
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 'stable'
+          # 修复点：改用 channel 而不是 flutter-version，或者直接指定一个具体的版本号
+          channel: 'stable' 
           cache: true
+          # 如果还是报错，可以尝试取消下面这一行的注释（指定具体版本）：
+          # flutter-version: '3.24.0' 
 
-      # 4. 安装依赖
       - name: Install dependencies
-        run: flutter pub get
+        run: |
+          flutter clean
+          flutter pub get
 
-      # 5. 构建 APK
       - name: Build APK
+        # 增加 --no-tree-shake-icons 是为了防止某些字体图标库在打包时报错
         run: flutter build apk --release --no-tree-shake-icons
 
-      # 6. 上传 APK (关键：修复报错，升级到 v4)
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: simple-live-apk
+          name: simple-live-app
           path: build/app/outputs/flutter-apk/app-release.apk
-          compression-level: 0 # v4 新特性，不压缩以提高速度
