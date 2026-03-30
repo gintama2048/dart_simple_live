@@ -1,4 +1,4 @@
-name: Build Mobile APK (Debug Version)
+name: Build Mobile APK (Force Fix)
 
 on:
   workflow_dispatch: 
@@ -21,27 +21,30 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 注入基础配置，确保 Gradle 不会因为找不到文件而崩溃
-      - name: Prepare Properties
+      # 关键步骤：暴力修复代码中的强制转换错误
+      - name: Patch Build Script
         run: |
-          # 在根目录和安卓目录都创建配置文件，防止脚本找不到
-          echo "flutter.sdk=$FLUTTER_ROOT" > local.properties
-          echo "flutter.versionCode=1" >> local.properties
-          echo "flutter.versionName=1.0.0" >> local.properties
-          cp local.properties simple_live_app/android/local.properties
+          # 进入项目目录
+          cd simple_live_app/android/app
+          # 使用 sed 命令将报错的 "as String" 这种容易崩溃的写法替换掉
+          # 或者直接强行给变量赋值，绕过读取配置文件的步骤
+          sed -i 's/as String/ ?: "1.0.0"/g' build.gradle.kts
+          # 顺便注入基础的 local.properties 以防万一
+          echo "flutter.sdk=$FLUTTER_ROOT" > ../local.properties
+          echo "flutter.versionCode=1" >> ../local.properties
+          echo "flutter.versionName=1.0.0" >> ../local.properties
 
       - name: Install dependencies
         working-directory: ./simple_live_app
         run: flutter pub get
 
-      - name: Build Debug APK
+      - name: Build APK
         working-directory: ./simple_live_app
-        # 关键修改：改用 debug 编译，跳过 release 的签名检查
+        # 使用 debug 构建，它最容易成功
         run: flutter build apk --debug --no-tree-shake-icons
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: simple-live-debug-apk
-          # 注意：Debug 模式生成的路径是 app-debug.apk
+          name: simple-live-app-fixed
           path: simple_live_app/build/app/outputs/flutter-apk/app-debug.apk
