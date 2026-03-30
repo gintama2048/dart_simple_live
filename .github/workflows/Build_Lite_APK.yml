@@ -1,4 +1,4 @@
-name: Build Lite APK (Optimized Size)
+name: Build Lite APK (Release Split)
 
 on:
   workflow_dispatch: 
@@ -21,20 +21,31 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Prepare Properties
+      # 1. 核心修复：手搓一个真实的临时签名文件
+      - name: Generate Real Keystore
         run: |
+          # 创建一个真实的 .keystore 文件
+          keytool -genkey -v -keystore simple_live_app/android/app/upload.keystore \
+            -alias my-key-alias \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass mypassword \
+            -keypass mypassword \
+            -dname "CN=Example, OU=Example, O=Example, L=Example, S=Example, C=US"
+          
+          # 将匹配的账号密码写入 key.properties
+          cat <<EOF > simple_live_app/android/key.properties
+          storePassword=mypassword
+          keyPassword=mypassword
+          keyAlias=my-key-alias
+          storeFile=upload.keystore
+          EOF
+          
+          # 写入基础配置
           echo "flutter.sdk=$FLUTTER_ROOT" > simple_live_app/android/local.properties
           echo "flutter.versionCode=1" >> simple_live_app/android/local.properties
           echo "flutter.versionName=1.0.0" >> simple_live_app/android/local.properties
-          # 伪造签名配置，这次我们尝试用 Release 模式，但用 Debug 签名
-          cat <<EOF > simple_live_app/android/key.properties
-          storePassword=android
-          keyPassword=android
-          keyAlias=androiddebugkey
-          storeFile=debug.keystore
-          EOF
-          # 拷贝安卓默认的调试签名文件到指定位置
-          cp $JAVA_HOME/lib/security/cacerts simple_live_app/android/app/debug.keystore
 
       - name: Install dependencies
         working-directory: ./simple_live_app
@@ -42,12 +53,13 @@ jobs:
 
       - name: Build Optimized APK
         working-directory: ./simple_live_app
-        # 核心优化参数：--release 减小体积，--split-per-abi 分架构打包
+        # --release: 丢弃调试代码，体积减小
+        # --split-per-abi: 按架构拆分，体积再减小
         run: flutter build apk --release --split-per-abi --no-tree-shake-icons
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: simple-live-lite-apks
-          # 上传所有生成的安装包
-          path: simple_live_app/build/app/outputs/flutter-apk/*.apk
+          name: simple-live-optimized
+          # 上传所有生成的 release 包
+          path: simple_live_app/build/app/outputs/flutter-apk/*-release.apk
