@@ -1,7 +1,7 @@
-name: Build APK
+name: Build Mobile APK
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch: # 开启手动运行按钮
 
 jobs:
   build:
@@ -18,23 +18,24 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          # 修复点：改用 channel 而不是 flutter-version，或者直接指定一个具体的版本号
-          channel: 'stable' 
+          channel: 'stable'
           cache: true
-          # 如果还是报错，可以尝试取消下面这一行的注释（指定具体版本）：
-          # flutter-version: '3.24.0' 
 
       - name: Install dependencies
+        # 关键修复：指定在手机端文件夹下运行
+        working-directory: ./simple_live_app
         run: |
           flutter clean
           flutter pub get
 
       - name: Build APK
-        # 增加 --no-tree-shake-icons 是为了防止某些字体图标库在打包时报错
+        # 关键修复：指定在手机端文件夹下运行
+        working-directory: ./simple_live_app
         run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: simple-live-app
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: simple-live-app-apk
+          # 对应的文件路径也要加上前缀
+          path: simple_live_app/build/app/outputs/flutter-apk/app-release.apk
