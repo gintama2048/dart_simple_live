@@ -1,0 +1,53 @@
+name: Build Lite APK (Optimized Size)
+
+on:
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Prepare Properties
+        run: |
+          echo "flutter.sdk=$FLUTTER_ROOT" > simple_live_app/android/local.properties
+          echo "flutter.versionCode=1" >> simple_live_app/android/local.properties
+          echo "flutter.versionName=1.0.0" >> simple_live_app/android/local.properties
+          # 伪造签名配置，这次我们尝试用 Release 模式，但用 Debug 签名
+          cat <<EOF > simple_live_app/android/key.properties
+          storePassword=android
+          keyPassword=android
+          keyAlias=androiddebugkey
+          storeFile=debug.keystore
+          EOF
+          # 拷贝安卓默认的调试签名文件到指定位置
+          cp $JAVA_HOME/lib/security/cacerts simple_live_app/android/app/debug.keystore
+
+      - name: Install dependencies
+        working-directory: ./simple_live_app
+        run: flutter pub get
+
+      - name: Build Optimized APK
+        working-directory: ./simple_live_app
+        # 核心优化参数：--release 减小体积，--split-per-abi 分架构打包
+        run: flutter build apk --release --split-per-abi --no-tree-shake-icons
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: simple-live-lite-apks
+          # 上传所有生成的安装包
+          path: simple_live_app/build/app/outputs/flutter-apk/*.apk
