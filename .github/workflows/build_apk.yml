@@ -1,4 +1,4 @@
-name: Build Mobile APK (Force Fix)
+name: Build Mobile APK (Standard Fix)
 
 on:
   workflow_dispatch: 
@@ -21,18 +21,22 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 关键步骤：暴力修复代码中的强制转换错误
-      - name: Patch Build Script
+      # 核心修复：创建项目构建脚本正在寻找的所有属性文件
+      - name: Create Property Files
         run: |
-          # 进入项目目录
-          cd simple_live_app/android/app
-          # 使用 sed 命令将报错的 "as String" 这种容易崩溃的写法替换掉
-          # 或者直接强行给变量赋值，绕过读取配置文件的步骤
-          sed -i 's/as String/ ?: "1.0.0"/g' build.gradle.kts
-          # 顺便注入基础的 local.properties 以防万一
-          echo "flutter.sdk=$FLUTTER_ROOT" > ../local.properties
-          echo "flutter.versionCode=1" >> ../local.properties
-          echo "flutter.versionName=1.0.0" >> ../local.properties
+          # 1. 创建 key.properties (解决 keyAlias 等变量报错)
+          # 我们填入虚拟信息，这样脚本读取时就不会返回 null 了
+          cat <<EOF > simple_live_app/android/key.properties
+          storePassword=password
+          keyPassword=password
+          keyAlias=upload
+          storeFile=../app/debug.keystore
+          EOF
+          
+          # 2. 创建 local.properties (Flutter 必需)
+          echo "flutter.sdk=$FLUTTER_ROOT" > simple_live_app/android/local.properties
+          echo "flutter.versionCode=1" >> simple_live_app/android/local.properties
+          echo "flutter.versionName=1.0.0" >> simple_live_app/android/local.properties
 
       - name: Install dependencies
         working-directory: ./simple_live_app
@@ -40,11 +44,13 @@ jobs:
 
       - name: Build APK
         working-directory: ./simple_live_app
-        # 使用 debug 构建，它最容易成功
-        run: flutter build apk --debug --no-tree-shake-icons
+        # 即使是打 Release 包，有了上面的虚拟配置文件通常也能成功
+        # 如果 Release 还是报错，请将下面这行改为: flutter build apk --debug --no-tree-shake-icons
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: simple-live-app-fixed
-          path: simple_live_app/build/app/outputs/flutter-apk/app-debug.apk
+          name: simple-live-app
+          # 这里的路径根据上面 build 的类型（release/debug）对应修改
+          path: simple_live_app/build/app/outputs/flutter-apk/app-release.apk
