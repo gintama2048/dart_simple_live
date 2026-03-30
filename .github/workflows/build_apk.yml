@@ -21,24 +21,37 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # 关键修复步骤：注入缺失的本地配置
+      # 核心修复：多重注入配置信息
       - name: Fix missing properties
-        working-directory: ./simple_live_app/android
         run: |
-          echo "VERSION_NAME=1.0.0" > local.properties
-          echo "VERSION_CODE=1" >> local.properties
-          echo "flutter.sdk=$FLUTTER_ROOT" >> local.properties
+          # 进入安卓目录
+          cd simple_live_app/android
+          
+          # 1. 注入 local.properties (Flutter 必需)
+          echo "flutter.sdk=$FLUTTER_ROOT" > local.properties
+          echo "flutter.versionCode=1" >> local.properties
+          echo "flutter.versionName=1.0.0" >> local.properties
+          
+          # 2. 注入 gradle.properties (针对 Kotlin DSL 报错修复)
+          # 我们把可能的变量名全部填上，防止脚本找不到
+          echo "VERSION_NAME=1.0.0" >> gradle.properties
+          echo "VERSION_CODE=1" >> gradle.properties
+          echo "versionName=1.0.0" >> gradle.properties
+          echo "versionCode=1" >> gradle.properties
 
       - name: Install dependencies
         working-directory: ./simple_live_app
         run: |
-          flutter clean
           flutter pub get
 
       - name: Build APK
         working-directory: ./simple_live_app
-        # 使用 --split-per-abi 可以生成更小的安装包，如果不想要也可以去掉
+        # 如果 release 持续失败，可以尝试改为 flutter build apk --debug 先跑通流程
         run: flutter build apk --release --no-tree-shake-icons
+        env:
+          # 3. 注入环境变量 (有些脚本会从环境读取)
+          VERSION_NAME: "1.0.0"
+          VERSION_CODE: "1"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
